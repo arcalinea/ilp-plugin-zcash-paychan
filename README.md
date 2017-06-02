@@ -25,14 +25,7 @@ npm install
 
 **RPC Auth**
 
-Set environment variables for the rpc username and password for your zcash client.
-
-```sh
-ZEC_USER=<username>
-ZEC_PASS=<password>
-export ZEC_USER
-export ZEC_PASS
-```
+You can use the getConf() function in the zcash module to get your zcash.conf file options as a json object "conf". Use this or some other method to set username and password for RPC authentication. 
 
 ## How It Works
 
