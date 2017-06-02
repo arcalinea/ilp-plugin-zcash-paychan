@@ -1,11 +1,12 @@
 'use strict'
 
-const bitcoinjs = require('bitcoinjs-lib')
+// Make sure npm install used zcash branches of bitcoinjs-lib and bitcoin-core
+const zcashjs = require('bitcoinjs-lib')
 const BigInteger = require('bigi')
-const BitcoinClient = require('bitcoin-core')
+const ZcashClient = require('bitcoin-core')
 const url = require('url')
 
-const BTC_SCALE = 1e8
+const ZEC_SCALE = 1e8
 const DEFAULT_FEE = 1e5
 const FINAL_SEQUENCE = 0xfffffffe
 const HASH_ALL = 1
@@ -14,7 +15,7 @@ function getClient ({ uri, network }) {
   const _uri = url.parse(uri)
   const [ user, pass ] = _uri.auth.split(':')
 
-  return new BitcoinClient({
+  return new ZcashClient({
     network: network,
     host: _uri.hostname,
     ssl: ((uri.protocol === 'https:')
@@ -27,21 +28,21 @@ function getClient ({ uri, network }) {
 
 async function getTx (client, txid) {
   const tx = await client.command('getrawtransaction', txid)
-  return bitcoinjs.Transaction.fromBuffer(Buffer.from(tx, 'hex'))
+  return zcashjs.Transaction.fromBuffer(Buffer.from(tx, 'hex'))
 }
 
 function publicKeyToAddress (publicKey) {
-  return bitcoinjs.ECPair
-    .fromPublicKeyBuffer(Buffer.from(publicKey, 'hex'), bitcoinjs.networks.testnet)
+  return zcashjs.ECPair
+    .fromPublicKeyBuffer(Buffer.from(publicKey, 'hex'), zcashjs.networks.testnet)
     .getAddress()
 }
 
 function scriptToOut (script) {
-  return bitcoinjs.script.scriptHashOutput(bitcoinjs.crypto.hash160(script))
+  return zcashjs.script.scriptHashOutput(zcashjs.crypto.hash160(script))
 }
 
 async function submit (client, transactionHex) {
-  console.log('submitting raw transaction to bitcoin core')
+  console.log('submitting raw transaction to zcash')
   const txid = await client.command('sendrawtransaction', transactionHex, true)
   console.log('submitted with txid:', txid)
 }
@@ -51,17 +52,17 @@ async function createTx ({
   script,
   amount
 }) {
-  const address = scriptToP2SH({ script, network: bitcoinjs.networks.testnet })
+  const address = scriptToP2SH({ script, network: zcashjs.networks.testnet })
   console.log('sending to address', address, 'with amount', amount)
-  return await client.command('sendtoaddress', address, amount / BTC_SCALE)
+  return await client.command('sendtoaddress', address, amount / ZEC_SCALE)
 }
 
 function scriptToP2SH ({
   script,
   network
 }) {
-  const scriptPubKey = bitcoinjs.script.scriptHashOutput(bitcoinjs.crypto.hash160(script))
-  return bitcoinjs.address.fromOutputScript(scriptPubKey, network)
+  const scriptPubKey = zcashjs.script.scriptHashOutput(zcashjs.crypto.hash160(script))
+  return zcashjs.address.fromOutputScript(scriptPubKey, network)
 }
 
 function generateP2SH ({
@@ -92,7 +93,7 @@ function generateRawClosureTx ({
   // TODO: is this an appropriate fee?
   // TODO: support other networks
   const _fee = fee || DEFAULT_FEE
-  const tx = new bitcoinjs.TransactionBuilder(bitcoinjs.networks.testnet)
+  const tx = new zcashjs.TransactionBuilder(zcashjs.networks.testnet)
 
   tx.addInput(txid, outputIndex)
   tx.addOutput(receiverKeypair.getAddress(), +claimAmount)
@@ -110,7 +111,7 @@ function generateExpireTx ({
   fee
 }) {
   const _fee = fee || DEFAULT_FEE
-  const tx = new bitcoinjs.TransactionBuilder(bitcoinjs.networks.testnet)
+  const tx = new zcashjs.TransactionBuilder(zcashjs.networks.testnet)
 
   tx.setLockTime(timeout)
   tx.addInput(txid, outputIndex, FINAL_SEQUENCE)
@@ -144,32 +145,32 @@ function generateScript ({
   network
 }) {
   if (!timeout) throw new Error('script requires a timeout, got: ' + timeout)
-  return bitcoinjs.script.compile([
-    bitcoinjs.opcodes.OP_IF,
-    bitcoinjs.script.number.encode(timeout),
-    bitcoinjs.opcodes.OP_CHECKLOCKTIMEVERIFY,
-    bitcoinjs.opcodes.OP_DROP,
+  return zcashjs.script.compile([
+    zcashjs.opcodes.OP_IF,
+    zcashjs.script.number.encode(timeout),
+    zcashjs.opcodes.OP_CHECKLOCKTIMEVERIFY,
+    zcashjs.opcodes.OP_DROP,
 
-    bitcoinjs.opcodes.OP_ELSE,
+    zcashjs.opcodes.OP_ELSE,
     receiverKeypair.getPublicKeyBuffer(),
-    bitcoinjs.opcodes.OP_CHECKSIGVERIFY,
-    bitcoinjs.opcodes.OP_ENDIF,
+    zcashjs.opcodes.OP_CHECKSIGVERIFY,
+    zcashjs.opcodes.OP_ENDIF,
 
     senderKeypair.getPublicKeyBuffer(),
-    bitcoinjs.opcodes.OP_CHECKSIG
+    zcashjs.opcodes.OP_CHECKSIG
   ])
 }
 
 function secretToKeypair (secret) {
-  return new bitcoinjs.ECPair(
+  return new zcashjs.ECPair(
     BigInteger.fromBuffer(Buffer.from(secret, 'hex')),
     null,
-    { network: bitcoinjs.networks.testnet })
+    { network: zcashjs.networks.testnet })
 }
 
 function publicToKeypair (publicKey) {
-  return bitcoinjs.ECPair
-    .fromPublicKeyBuffer(Buffer.from(publicKey, 'hex'), bitcoinjs.networks.testnet)
+  return zcashjs.ECPair
+    .fromPublicKeyBuffer(Buffer.from(publicKey, 'hex'), zcashjs.networks.testnet)
 }
 
 module.exports = {

@@ -1,14 +1,14 @@
 'use strict'
 
-const debug = require('debug')('ilp-plugin-bitcoin-paychan')
+const debug = require('debug')('ilp-plugin-zcash-paychan')
 const crypto = require('crypto')
 const shared = require('ilp-plugin-shared')
-const bitcoin = require('./bitcoin')
+const zcash = require('./zcash')
 const Channel = require('./channel')
 const EventEmitter2 = require('eventemitter2')
 const InvalidFieldsError = shared.Errors.InvalidFieldsError
 
-module.exports = class PluginBitcoinPaychan extends EventEmitter2 {
+module.exports = class PluginZcashPaychan extends EventEmitter2 {
   constructor ({
     outgoingAmount,
     rpcUri,
@@ -16,7 +16,7 @@ module.exports = class PluginBitcoinPaychan extends EventEmitter2 {
     timeout,
     network,
     peerPublicKey,
-    bitcoinUri,
+    zcashUri,
     maxInFlight,
     _store,
   }) {
@@ -28,18 +28,18 @@ module.exports = class PluginBitcoinPaychan extends EventEmitter2 {
       throw new InvalidFieldsError('missing opts.secret')
     } else if (!peerPublicKey) {
       throw new InvalidFieldsError('missing opts.peerPublicKey')
-    } else if (!bitcoinUri) {
-      throw new InvalidFieldsError('missing opts.bitcoinUri')
+    } else if (!zcashUri) {
+      throw new InvalidFieldsError('missing opts.zcashUri')
     } else if (!_store) {
       throw new InvalidFieldsError('missing opts._store')
     }
 
-    this._bitcoinUri = bitcoinUri
+    this._zcashUri = zcashUri
     this._peerPublicKey = peerPublicKey
     this._secret = secret
-    this._keypair = bitcoin.secretToKeypair(this._secret)
-    this._address = bitcoin.publicKeyToAddress(this._keypair.getPublicKeyBuffer().toString('hex'))
-    this._peerAddress = bitcoin.publicKeyToAddress(peerPublicKey)
+    this._keypair = zcash.secretToKeypair(this._secret)
+    this._address = zcash.publicKeyToAddress(this._keypair.getPublicKeyBuffer().toString('hex'))
+    this._peerAddress = zcash.publicKeyToAddress(peerPublicKey)
 
     this._prefix = 'g.crypto.zcash.' + ((this._address > this._peerAddress)
       ? this._address + '~' + this._peerAddress
@@ -60,7 +60,7 @@ module.exports = class PluginBitcoinPaychan extends EventEmitter2 {
     const channelParams = {
       // TODO: allow 2 different timeouts?
       timeout: timeout,
-      uri: this._bitcoinUri,
+      uri: this._zcashUri,
       store: _store,
       network: 'testnet',
       secret: this._secret

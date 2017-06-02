@@ -1,10 +1,10 @@
 'use strict'
-const PluginBitcoin = require('.')
+const PluginZcash = require('.')
 const uuid = require('uuid')
 const crypto = require('crypto')
-const bitcoin = require('./src/bitcoin')
+const zcash = require('./src/zcash')
 const ObjectStore = require('ilp-plugin-shared').ObjStore
-const btc = require('bitcoinjs-lib')
+const zec = require('bitcoinjs-lib')
 const child = require('child_process')
 const Koa = require('koa')
 const Router = require('koa-router')
@@ -12,7 +12,9 @@ const Parser = require('koa-bodyparser')
 const chalk = require('chalk')
 const ZEC_SCALE = 1e8
 const USER = process.env.ZEC_USER
-const PASS = process.env.ZEC_PASS
+const PASS = process.env.ZEC_PASSWORD
+
+console.log("USER", USER, "PASS", PASS)
 
 process.on('unhandledRejection', e => console.error(e));
 
@@ -73,35 +75,35 @@ async function run () {
   console.log(chalk.grey('generating channel addresses'))
   const secretAlice = '3b6386909838945a840b26c10fc794b1a536ea1ab02c162ecb62d565e24ed94a'
   const secretBob = '80044da2f41364353b173aacc42b8694125cda4636a979105c400e4d6bf4684f'
-  const kpA = bitcoin.secretToKeypair(secretAlice)
-  const kpB = bitcoin.secretToKeypair(secretBob)
+  const kpA = zcash.secretToKeypair(secretAlice)
+  const kpB = zcash.secretToKeypair(secretBob)
 
   console.log('public key alice:', kpA.getPublicKeyBuffer().toString('hex'))
   console.log('public key bob:', kpB.getPublicKeyBuffer().toString('hex'))
   /*
-  const addrAB = bitcoin.generateP2SH({
+  const addrAB = zcash.generateP2SH({
     senderKeypair: kpA,
     receiverKeypair: kpB,
     timeout: timeoutstamp,
-    network: btc.networks.testnet
+    network: zec.networks.testnet
   })
-  const addrBA = bitcoin.generateP2SH({
+  const addrBA = zcash.generateP2SH({
     senderKeypair: kpB,
     receiverKeypair: kpA,
     timeout: timeoutstamp,
-    network: btc.networks.testnet
+    network: zec.networks.testnet
   })
 
   console.log(chalk.grey('funding channels'))
-  const txAB = await jankyRun('bitcoin-cli -regtest sendtoaddress ' + addrAB + ' 1.00')
-  const txBA = await jankyRun('bitcoin-cli -regtest sendtoaddress ' + addrBA + ' 1.00')
+  const txAB = await jankyRun('zcash-cli -regtest sendtoaddress ' + addrAB + ' 1.00')
+  const txBA = await jankyRun('zcash-cli -regtest sendtoaddress ' + addrBA + ' 1.00')
 
   console.log(chalk.grey('mining fund transactions'))
-  await jankyRun('bitcoin-cli -regtest generate 1')
+  await jankyRun('zcash-cli -regtest generate 1')
   */
 
   console.log(chalk.grey('creating alice'))
-  const alice = new PluginBitcoin({
+  const alice = new PluginZcash({
     _store: new ObjectStore(),
     outgoingAmount: 1 * ZEC_SCALE,
     /*incomingTxId: txBA,
@@ -115,11 +117,11 @@ async function run () {
     timeout: timeoutstamp,
     network: 'testnet',
     peerPublicKey: kpB.getPublicKeyBuffer().toString('hex'),
-    bitcoinUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
+    zcashUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
   })
 
   console.log(chalk.grey('creating bob'))
-  const bob = new PluginBitcoin({
+  const bob = new PluginZcash({
     _store: new ObjectStore(),
     outgoingAmount: 1 * ZEC_SCALE,
     /*incomingTxId: txAB,
@@ -133,7 +135,7 @@ async function run () {
     timeout: timeoutstamp,
     network: 'testnet',
     peerPublicKey: kpA.getPublicKeyBuffer().toString('hex'),
-    bitcoinUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
+    zcashUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
   })
 
   console.log(chalk.grey('establishing RPC'))
