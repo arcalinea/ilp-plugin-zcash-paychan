@@ -57,11 +57,17 @@ module.exports = class Channel {
   }
 
   async createChannel () {
-    this._txid = await zcash.createTx({
-      client: this._client,
-      script: this._redeemScript,
-      amount: this._amount
-    })
+    const txidIndex = 'channel_' + this._incoming ? 'i':'o'
+    this._txid = await this._store.get(txidIndex)
+
+    if (!this._txid) {
+      this._txid = await zcash.createTx({
+        client: this._client,
+        script: this._redeemScript,
+        amount: this._amount
+      })
+      await this._store.put(txidIndex)
+    }
 
     debug('created fund transaction with id', this._txid)
     return this._txid
