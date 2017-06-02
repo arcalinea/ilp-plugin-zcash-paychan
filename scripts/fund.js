@@ -1,7 +1,7 @@
 'use strict'
 
 const bitcoinjs = require('bitcoinjs-lib')
-const bitcoin = require('../src/bitcoin')
+const zcash = require('../src/zcash')
 const [ , , senderPublicKey, receiverPublicKey, timeout, network ] = process.argv
 
 if (process.argv.length < 5) {
@@ -10,18 +10,18 @@ if (process.argv.length < 5) {
   process.exit(1)
 }
 
-const senderKeypair = bitcoin.publicToKeypair(senderPublicKey)
-const receiverKeypair = bitcoin.publicToKeypair(receiverPublicKey)
+const senderKeypair = zcash.publicToKeypair(senderPublicKey)
+const receiverKeypair = zcash.publicToKeypair(receiverPublicKey)
 
 try {
-  console.log('sender to receiver channel:', bitcoin.generateP2SH({
+  console.log('sender to receiver channel:', zcash.generateP2SH({
     senderKeypair,
     receiverKeypair,
     timeout: +timeout,
     network: bitcoinjs.networks[network]
   }))
 
-  console.log('receiver to sender channel:', bitcoin.generateP2SH({
+  console.log('receiver to sender channel:', zcash.generateP2SH({
     senderKeypair: receiverKeypair,
     receiverKeypair: senderKeypair,
     timeout: +timeout,
