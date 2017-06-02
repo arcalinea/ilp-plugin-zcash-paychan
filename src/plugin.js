@@ -37,6 +37,7 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
     this._zcashUri = zcashUri
     this._peerPublicKey = peerPublicKey
     this._secret = secret
+    this._network = network
     this._keypair = zcash.secretToKeypair(this._secret)
     this._address = zcash.publicKeyToAddress(this._keypair.getPublicKeyBuffer().toString('hex'))
     this._peerAddress = zcash.publicKeyToAddress(peerPublicKey)
@@ -62,7 +63,7 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
       timeout: timeout,
       uri: this._zcashUri,
       store: _store,
-      network: 'testnet',
+      network: this._network,
       secret: this._secret
     }
 
@@ -127,7 +128,7 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
   getInfo () {
     return {
       prefix: this._prefix,
-      currencyCode: 'BTC',
+      currencyCode: 'ZEC',
       currencyScale: 8,
       connectors: [ this._prefix + this._peerPublicKey ]
     }
