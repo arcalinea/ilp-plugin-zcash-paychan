@@ -10,9 +10,12 @@ const Koa = require('koa')
 const Router = require('koa-router')
 const Parser = require('koa-bodyparser')
 const chalk = require('chalk')
+
+const conf = zcash.getConf()
+const USER = conf['rpcuser']
+const PASS = conf['rpcpassword']
+
 const ZEC_SCALE = 1e8
-const USER = process.env.ZEC_USER
-const PASS = process.env.ZEC_PASS
 
 console.log("USER", USER, "PASS", PASS)
 

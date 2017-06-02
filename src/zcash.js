@@ -5,11 +5,24 @@ const zcashjs = require('bitcoinjs-lib')
 const BigInteger = require('bigi')
 const ZcashClient = require('bitcoin-core')
 const url = require('url')
+const fs  = require("fs");
 
 const ZEC_SCALE = 1e8
 const DEFAULT_FEE = 1e5
 const FINAL_SEQUENCE = 0xfffffffe
 const HASH_ALL = 1
+
+function getConf(){
+  var zcashConf = process.env.HOME + '/.zcash/zcash.conf'
+  var conf = {}
+  fs.readFileSync(zcashConf).toString().split('\n').forEach(function (line) {
+    if (line.includes('=')) {
+      var split = line.split('=')
+      conf[split[0]] = split[1]
+    }
+  });
+  return conf
+}
 
 function getClient ({ uri, network }) {
   const _uri = url.parse(uri)
@@ -183,6 +196,7 @@ module.exports = {
   secretToKeypair,
   publicToKeypair,
   getClient,
+  getConf,
   getTx,
   scriptToOut,
   getTxHash,
