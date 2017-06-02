@@ -1,0 +1,24 @@
+{
+  "name": "ilp-plugin-zcash-paychan",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bignumber.js": "^4.0.2",
+    "bitcoin-core": "github:arcalinea/bitcoin-core#zcash",
+    "bitcoinjs-lib": "github:str4d/bitcoinjs-lib#poc-zcash-dpt",
+    "bitcore-lib": "^0.14.0",
+    "chalk": "^1.1.3",
+    "debug": "^2.6.8",
+    "eventemitter2": "^4.1.0",
+    "ilp-plugin-shared": "github:interledgerjs/ilp-plugin-shared#master",
+    "koa": "^2.2.0",
+    "koa-bodyparser": "^4.2.0",
+    "koa-router": "^7.2.0"
+  }
+}
