@@ -12,7 +12,7 @@ const Parser = require('koa-bodyparser')
 const chalk = require('chalk')
 const ZEC_SCALE = 1e8
 const USER = process.env.ZEC_USER
-const PASS = process.env.ZEC_PASSWORD
+const PASS = process.env.ZEC_PASS
 
 console.log("USER", USER, "PASS", PASS)
 

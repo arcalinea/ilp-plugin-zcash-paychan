@@ -23,6 +23,16 @@ cd ilp-plugin-zcash-paychan
 npm install
 ```
 
+**RPC Auth**
+
+Set environment variables for the rpc username and password for your zcash client.
+
+```sh
+ZEC_USER=<username>
+ZEC_PASS=<password>
+export ZEC_USER
+export ZEC_PASS
+```
 
 ## How It Works
 
