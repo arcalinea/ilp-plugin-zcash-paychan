@@ -10,7 +10,9 @@ const Koa = require('koa')
 const Router = require('koa-router')
 const Parser = require('koa-bodyparser')
 const chalk = require('chalk')
-const BTC_SCALE = 1e8
+const ZEC_SCALE = 1e8
+const USER = process.env.ZEC_USER
+const PASS = process.env.ZEC_PASS
 
 process.on('unhandledRejection', e => console.error(e));
 
@@ -101,37 +103,37 @@ async function run () {
   console.log(chalk.grey('creating alice'))
   const alice = new PluginBitcoin({
     _store: new ObjectStore(),
-    outgoingAmount: 1 * BTC_SCALE,
+    outgoingAmount: 1 * ZEC_SCALE,
     /*incomingTxId: txBA,
     outgoingTxId: txAB,
     // TODO: maybe these are wrong sometimes
     incomingOutputIndex: 0,
     outgoingOutputIndex: 0,*/
-    maxInFlight: 0.5 * BTC_SCALE,
+    maxInFlight: 0.5 * ZEC_SCALE,
     rpcUri: 'http://localhost:7777/bob',
     secret: secretAlice,
     timeout: timeoutstamp,
     network: 'testnet',
     peerPublicKey: kpB.getPublicKeyBuffer().toString('hex'),
-    bitcoinUri: 'http://username:322h3jkll8ksjah3@localhost:18444'
+    bitcoinUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
   })
 
   console.log(chalk.grey('creating bob'))
   const bob = new PluginBitcoin({
     _store: new ObjectStore(),
-    outgoingAmount: 1 * BTC_SCALE,
+    outgoingAmount: 1 * ZEC_SCALE,
     /*incomingTxId: txAB,
     outgoingTxId: txBA,
     // TODO: maybe these are wrong sometimes
     incomingOutputIndex: 0,
     outgoingOutputIndex: 0,*/
-    maxInFlight: 0.5 * BTC_SCALE,
+    maxInFlight: 0.5 * ZEC_SCALE,
     rpcUri: 'http://localhost:7777/alice',
     secret: secretBob,
     timeout: timeoutstamp,
     network: 'testnet',
     peerPublicKey: kpA.getPublicKeyBuffer().toString('hex'),
-    bitcoinUri: 'http://username:322h3jkll8ksjah3@localhost:18444'
+    bitcoinUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
   })
 
   console.log(chalk.grey('establishing RPC'))
@@ -184,7 +186,7 @@ async function run () {
   await alice.sendTransfer({
     id: uuid(),
     to: bob.getAccount(),
-    amount: 0.1 * BTC_SCALE,
+    amount: 0.1 * ZEC_SCALE,
     ilp: 'thequickbrownfoxjumpsoverthelazydog',
     executionCondition: base64url(condition),
     expiresAt: new Date(Date.now() + 1000).toISOString()
