@@ -29,6 +29,7 @@ module.exports = class Channel {
       this._incoming = false
     }
 
+    this._store = store
     this._timeout = timeout
     this._network = network
     this._zcashUri = url.parse(uri)
