@@ -3,27 +3,29 @@
 const debug = require('debug')('ilp-plugin-zcash-paychan')
 const crypto = require('crypto')
 const shared = require('ilp-plugin-shared')
+const BigNumber = require('bignumber.js')
 const zcash = require('./zcash')
 const Channel = require('./channel')
-const EventEmitter2 = require('eventemitter2')
 const InvalidFieldsError = shared.Errors.InvalidFieldsError
+const PluginBtp = require('ilp-plugin-btp')
+const BtpPacket = require('btp-packet')
+const GET_OUTGOING_TXID = '_get_zcash_outgoing_txid'
 
-module.exports = class PluginZcashPaychan extends EventEmitter2 {
+class PluginZcashPaychan extends PluginBtp {
   constructor ({
     outgoingAmount,
-    rpcUri,
     secret,
     timeout,
     network,
     peerPublicKey,
     zcashUri,
-    maxInFlight,
     _store,
-  }) {
-    super()
 
-    if (!rpcUri) {
-      throw new InvalidFieldsError('missing opts.rpcUri')
+    listener,
+    server
+  }) {
+    if (!listener && !server) {
+      throw new Error('missing opts.listener or opts.server')
     } else if (!secret) {
       throw new InvalidFieldsError('missing opts.secret')
     } else if (!peerPublicKey) {
@@ -33,6 +35,8 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
     } else if (!_store) {
       throw new InvalidFieldsError('missing opts._store')
     }
+
+    super({listener, server})
 
     this._zcashUri = zcashUri
     this._peerPublicKey = peerPublicKey
@@ -45,18 +49,6 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
     this._prefix = 'g.crypto.zcash.' + ((this._address > this._peerAddress)
       ? this._address + '~' + this._peerAddress
       : this._peerAddress + '~' + this._address) + '.'
-
-    // TODO: make the balance right, and have it be configurable
-    this._inFlight = new shared.Balance({ store: _store, maximum: maxInFlight })
-    this._transfers = new shared.TransferLog({ store: _store })
-    this._validator = new shared.Validator({ plugin: this })
-    this.isAuthorized = () => true
-    this._rpc = new shared.HttpRpc({
-      rpcUri: rpcUri,
-      plugin: this,
-      // TODO: shared secret or something
-      authToken: 'placeholder'
-    })
 
     const channelParams = {
       // TODO: allow 2 different timeouts?
@@ -78,20 +70,12 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
       amount: outgoingAmount
     }, channelParams))
 
-    this.receive = this._rpc.receive.bind(this._rpc)
-    this._rpc.addMethod('send_message', this._handleSendMessage)
-    this._rpc.addMethod('send_transfer', this._handleSendTransfer)
-    this._rpc.addMethod('fulfill_condition', this._handleFulfillCondition)
-    this._rpc.addMethod('reject_incoming_transfer', this._handleRejectIncomingTransfer)
-    this._rpc.addMethod('get_outgoing_txid', this._handleGetOutgoingTxId)
+    this._incomingTxId = null
+    this._outgoingTxId = null
+    this._bestClaimAmount = '0'
   }
 
-  async _handleGetOutgoingTxId () {
-    return this._outgoingTxId
-  }
-
-  async connect () {
-    await this._inFlight.connect()
+  async _connect () {
     await this._incomingChannel.connect()
     await this._outgoingChannel.connect()
     this._outgoingTxId = await this._outgoingChannel.createChannel()
@@ -99,149 +83,51 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
     while (!this._incomingTxId) {
       await new Promise((resolve) => setTimeout(resolve, 5000))
       try {
-        this._incomingTxId = await this._rpc.call('get_outgoing_txid', this._prefix, [])
+        const res = await this._call(null, {
+          type: BtpPacket.TYPE_MESSAGE,
+          requestId: await _requestId(),
+          data: {
+            protocolData: [{
+              protocolName: GET_OUTGOING_TXID,
+              contentType: BtpPacket.MIME_APPLICATION_OCTET_STREAM,
+              data: Buffer.alloc(0)
+            }]
+          }
+        })
+        const proto = res.protocolData.find((p) => p.protocolName === GET_OUTGOING_TXID)
+        this._incomingTxId = JSON.parse(proto.data.toString()).txid
       } catch (e) {
-        debug('got rpc error:', e.message)
+        debug('got btp error:', e.message)
         debug('retrying...')
       }
     }
 
     await this._incomingChannel.loadTransaction({ txid: this._incomingTxId })
     await this._outgoingChannel.loadTransaction({})
-    this._connected = true
-    shared.Util.safeEmit(this, 'connect')
   }
 
-  isConnected () {
-    return !!this._connected
-  }
-
-  async disconnect () {
-    await this._incomingChannel.claim()
-    shared.Util.safeEmit(this, 'disconnect')
-  }
-
-  getAccount () {
-    return this._prefix + this._address
-  }
-
-  getInfo () {
-    return {
-      prefix: this._prefix,
-      currencyCode: 'ZEC',
-      currencyScale: 8,
-      connectors: [ this._prefix + this._peerPublicKey ]
+  async _disconnect () {
+    if (this._incomingChannel) {
+      await this._incomingChannel.claim()
     }
   }
 
-  async sendMessage (_message) {
-    const message = this._validator.normalizeOutgoingMessage(_message)
-    await this._rpc.call('send_message', this._prefix, [ message ])
-    shared.Util.safeEmit(this, 'outgoing_message', message)
+  async sendMoney (amount) {
+    const claim = await this._outgoingChannel.createClaim({amount})
+    await this._call(null, {
+      type: BtpPacket.TYPE_TRANSFER,
+      requestId: await _requestId(),
+      data: {
+        amount,
+        protocolData: [{
+          protocolName: 'claim',
+          contentType: BtpPacket.MIME_APPLICATION_JSON,
+          data: Buffer.from(JSON.stringify({ amount, signature: claim }))
+        }]
+      }
+    })
   }
 
-  async _handleSendMessage (_message) {
-    const message = this._validator.normalizeIncomingMessage(_message)
-    shared.Util.safeEmit(this, 'incoming_message', message)
-    return true
-  }
-
-  async sendTransfer (_transfer) {
-    const transfer = this._validator.normalizeOutgoingTransfer(_transfer)
-    // TODO: wrap these into just one method
-    const noRepeat = (this._transfers.cacheOutgoing(transfer) &&
-      (await this._transfers.notInStore(transfer)))
-
-    await this._rpc.call('send_transfer', this._prefix, [
-      // TODO: util method for this?
-      Object.assign({}, transfer, { noteToSelf: undefined })
-    ])
-    debug(transfer.id + ' acknowledged by peer')
-
-    // TODO: is all this repeat stuff totally necessary?
-    if (!noRepeat) return
-
-    shared.Util.safeEmit(this, 'outgoing_prepare', transfer)
-    this._setupTransferExpiry(transfer.id, transfer.expiresAt)
-  }
-
-  async _handleSendTransfer (_transfer) {
-    const transfer = this._validator.normalizeIncomingTransfer(_transfer)
-    // TODO: wrap these into just one method
-    const noRepeat = (this._transfers.cacheIncoming(transfer) &&
-      (await this._transfers.notInStore(transfer)))
-
-    if (!noRepeat) return true
-
-    await this._inFlight.add(transfer.amount)
-      .catch((e) => {
-        this._transfers.cancel(transfer.id)
-        throw e
-      })
-
-    shared.Util.safeEmit(this, 'incoming_prepare', transfer)
-    this._setupTransferExpiry(transfer.id, transfer.expiresAt)
-    return true
-  }
-
-  async fulfillCondition (transferId, fulfillment) {
-    // TODO: check out that method
-    this._validator.validateFulfillment(fulfillment)
-
-    // TODO: what even is this construct and why did I do it
-    const error = this._transfers.assertAllowedChange(transferId, 'executed')
-    if (error) {
-      await error
-      await this._rpc.call('fulfill_condition', this._prefix, [ transferId, fulfillment ])
-      return
-    }
-
-    // TODO: what does this do and is it needed?
-    this._transfers.assertIncoming(transferId)
-    // TODO: make the error on this better when the transfer isn't found
-    const transfer = this._transfers.get(transferId)
-    shared.Util.safeEmit(this, 'incoming_fulfill', transfer, fulfillment)
-
-    let claim
-    try {
-      claim = await this._rpc.call('fulfill_condition', this._prefix, [transferId, fulfillment])
-    } catch (e) {
-      console.error(e.stack)
-      debug('failed to get claim from peer. keeping the in-flight balance up.')
-      return
-    }
-
-    debug('got claim from peer:', claim)
-    this._incomingChannel.processClaim({ transfer, claim })
-    this._transfers.fulfill(transferId, fulfillment)
-    console.log('fulfilled from store')
-  }
-
-  async _handleFulfillCondition (transferId, fulfillment) {
-    this._validator.validateFulfillment(fulfillment)
-
-    const error = this._transfers.assertAllowedChange(transferId, 'executed')
-    if (error) {
-      await error
-      // TODO: return an error instead, so it gives better error?
-      return true
-    }
-
-    this._transfers.assertOutgoing(transferId)
-    const transfer = this._transfers.get(transferId)
-    transfer.direction = 'outgoing' // the connector needs this for whatever reason
-    console.log('fetched transfer for fulfill:', transfer)
-
-    this._validateFulfillment(fulfillment, transfer.executionCondition)
-    this._transfers.fulfill(transferId, fulfillment)
-    console.log('fulfilled from store')
-    shared.Util.safeEmit(this, 'outgoing_fulfill', transfer, fulfillment)
-
-    console.log('creating claim')
-    const sig = await this._outgoingChannel.createClaim(transfer)
-    console.log('produced claim:', sig)
-    return sig
-  }
 
   _validateFulfillment (fulfillment, condition) {
     const hash = shared.Util.base64url(crypto
@@ -256,71 +142,51 @@ module.exports = class PluginZcashPaychan extends EventEmitter2 {
     }
   }
 
-  async rejectIncomingTransfer (transferId, reason) {
-    const error = this._transfers.assertAllowedChange(transferId, 'cancelled')
-    if (error) {
-      await error
-      await this._rpc.call('reject_incoming_transfer', this._prefix, [transferId, reason])
-      return
+  async _handleMoney (from, { requestId, data }) {
+    const transferAmount = new BigNumber(data.amount)
+    const primary = data.protocolData[0]
+    if (primary.protocolName !== 'claim') return []
+
+    const lastAmount = new BigNumber(this._bestClaimAmount)
+    const {amount, signature} = JSON.parse(primary.data)
+    const addedMoney = new BigNumber(amount).minus(lastAmount)
+    if (!addedMoney.eq(transferAmount)) {
+      debug('amounts out of sync. peer thinks they sent ' + transferAmount.toString() + ' got ' + addedMoney.toString())
+    }
+    if (lastAmount.gte(amount)) {
+      throw new Error('claim decreased')
     }
 
-    debug('rejecting', transfer.id)
-    this._transfers.assertIncoming(transferId)
-    const transfer = this._transfers.get(transferId)
+    await this._incomingChannel.processClaim({ transfer: {amount}, claim: signature })
+    this._bestClaimAmount = amount
 
-    this._transfers.cancel(transferId)
-    shared.Util.safeEmit(this, 'incoming_reject', transfer)
-    await this._inFlight.sub(transfer.amount)
-    await this._rpc.call('reject_incoming_transfer', this._prefix, [ transferId, reason ])
-  }
-
-  async _handleRejectIncomingTransfer (transferId, reason) {
-    const error = this._transfers.assertAllowedChange(transferId, 'cancelled')
-    if (error) {
-      await error
-      return true
+    if (this._moneyHandler) {
+      await this._moneyHandler(addedMoney.toString())
     }
-
-    this._transfers.assertOutgoing(transferId)
-    const transfer = this._transfers.get(transferId)
-
-    this._transfers.cancel(transferId)
-    shared.Util.safeEmit(this, 'outgoing_reject', transfer)
-    return true
+    return []
   }
 
-  _setupTransferExpiry (transferId, expiresAt) {
-    const expiry = Date.parse(expiresAt)
-    const now = Date.now()
-
-    setTimeout(
-      this._expireTransfer.bind(this, transferId),
-      (expiry - now))
-  }
-
-  async _expireTransfer (transferId) {
-    debug('checking expiry on ' + transferId)
-
-    // TODO: use a less confusing construct
-    try {
-      const error = this._transfers.assertAllowedChange(transferId, 'cancelled')
-      if (error) {
-        await error
-        return
-      }
-    } catch (e) {
-      debug(e.message)
-      return
+  async _handleData (from, { requestId, data }) {
+    const { protocolMap } = this.protocolDataToIlpAndCustom(data)
+    if (!protocolMap[GET_OUTGOING_TXID]) {
+      return super._handleData(from, { requestId, data })
     }
-
-    const cached = this._transfers._getCachedTransferWithInfo(transferId)
-    this._transfers.cancel(transferId)
-
-    if (cached.isIncoming) {
-      this._inFlight.sub(cached.transfer.amount)
-    }
-
-    shared.Util.safeEmit(this, (cached.isIncoming ? 'incoming' : 'outgoing') + '_cancel',
-      cached.transfer)
+    return [{
+      protocolName: GET_OUTGOING_TXID,
+      contentType: BtpPacket.MIME_APPLICATION_JSON,
+      data: Buffer.from(JSON.stringify({ txid: this._outgoingTxId }))
+    }]
   }
+}
+
+PluginZcashPaychan.version = 2
+module.exports = PluginZcashPaychan
+
+async function _requestId () {
+  return new Promise((resolve, reject) => {
+    crypto.randomBytes(4, (err, buf) => {
+      if (err) reject(err)
+      resolve(buf.readUInt32BE(0))
+    })
+  })
 }

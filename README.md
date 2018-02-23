@@ -6,7 +6,7 @@
 
 This plugin enables [Interledger](https://interledger.org) payments through [Zcash](https://z.cash) using simple payment channels.
 
-`ilp-plugin-zcash-paychan` implements the [Interledger.js Ledger Plugin Interface](https://github.com/interledger/rfcs/blob/master/0004-ledger-plugin-interface/0004-ledger-plugin-interface.md), which allows Zcash to be used with [`ilp` client](https://github.com/interledgerjs/ilp) and the [`ilp-connector`](https://github.com/interledgerjs/ilp-connector).
+`ilp-plugin-zcash-paychan` implements the [Interledger.js Ledger Plugin Interface Version 2](https://github.com/interledger/rfcs/blob/master/0024-ledger-plugin-interface-2/0024-ledger-plugin-interface-2.md), which allows Zcash to be used with [`ilp` client](https://github.com/interledgerjs/ilp) and the [`ilp-connector`](https://github.com/interledgerjs/ilp-connector).
 
 ## Installation
 
@@ -18,7 +18,7 @@ This plugin enables [Interledger](https://interledger.org) payments through [Zca
 **Setup:**
 
 ```sh
-git clone https://github.com/interledgerjs/ilp-plugin-zcash-paychan.git
+git clone https://github.com/arcalinea/ilp-plugin-zcash-paychan.git
 cd ilp-plugin-zcash-paychan
 npm install
 ```
@@ -31,6 +31,6 @@ You can use the getConf() function in the zcash module to get your zcash.conf fi
 
 `ilp-plugin-zcash-paychan` uses simple unidirectional Zcash payment channels implemented with [CHECKLOCKTIMEVERIFY (CLTV)](https://github.com/bitcoin/bips/blob/master/bip-0065.mediawiki). While the underlying channel is not conditional (i.e. does not use hashlocks), the plugin only sends updates to the channel when it receives the fulfillment from the other party. This means that payments that there is some risk for payments that are in flight. However, the Interledger Protocol isolates participants from risk from indirect peers.
 
-By implementing all of the functions required by the [Ledger Plugin Interface](https://github.com/interledger/rfcs/blob/master/0004-ledger-plugin-interface/0004-ledger-plugin-interface.md), this allows Zcash to be used by standard Interledger.js components.
+By implementing all of the functions required by the [Ledger Plugin Interface Version 2](https://github.com/interledger/rfcs/blob/master/0024-ledger-plugin-interface-2/0024-ledger-plugin-interface-2.md), this allows Zcash to be used by standard Interledger.js components.
 
 For more information about how Interledger works, see [IL-RFC 1: Interledger Architecture](https://github.com/interledger/rfcs/blob/master/0001-interledger-architecture/0001-interledger-architecture.md).
