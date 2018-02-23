@@ -6,9 +6,6 @@ const zcash = require('./src/zcash')
 const ObjectStore = require('ilp-plugin-shared').ObjStore
 const zec = require('bitcoinjs-lib')
 const child = require('child_process')
-const Koa = require('koa')
-const Router = require('koa-router')
-const Parser = require('koa-bodyparser')
 const chalk = require('chalk')
 
 const conf = zcash.getConf()
@@ -19,52 +16,16 @@ const ZEC_SCALE = 1e8
 
 console.log("USER", USER, "PASS", PASS)
 
-process.on('unhandledRejection', e => console.error(e));
-
-const base64url = function (buf) {
-  return buf
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-}
-
-const makeRpcCallback = function (plugin) {
-  return async function (ctx) {
-    const { method, prefix } = ctx.query
-
-    try {
-      const res = await plugin.receive(method, ctx.request.body)
-      ctx.body = res
-    } catch (e) {
-      ctx.body = e.stack
-      ctx.status = 400
-    }
-  }
-}
-
-const establishRpc = function ({
-  port, alice, bob
-}) {
-  const app = new Koa()
-  const router = Router()
-  const parser = Parser()
-
-  router.post('/alice', makeRpcCallback(alice))
-  router.post('/bob', makeRpcCallback(bob))
-
-  app
-    .use(parser)
-    .use(router.routes())
-    .use(router.allowedMethods())
-    .listen(port)
-}
+process.on('unhandledRejection', (err) => {
+  console.error(err)
+  process.exit(1)
+})
 
 const jankyRun = function (command) {
   return new Promise((resolve, reject) => {
     child.exec(command, function (err, stdout, stderr) {
       if (stderr) console.error(stderr)
-      if (err) reject(err)
+      if (err) return reject(err)
       console.log('"' + command + '" -> "' + stdout.trim() + '"')
       resolve(stdout.trim())
     })
@@ -114,8 +75,7 @@ async function run () {
     // TODO: maybe these are wrong sometimes
     incomingOutputIndex: 0,
     outgoingOutputIndex: 0,*/
-    maxInFlight: 0.5 * ZEC_SCALE,
-    rpcUri: 'http://localhost:7777/bob',
+    listener: {port: 7777, secret: 'secret'},
     secret: secretAlice,
     timeout: timeoutstamp,
     network: 'testnet',
@@ -132,8 +92,7 @@ async function run () {
     // TODO: maybe these are wrong sometimes
     incomingOutputIndex: 0,
     outgoingOutputIndex: 0,*/
-    maxInFlight: 0.5 * ZEC_SCALE,
-    rpcUri: 'http://localhost:7777/alice',
+    server: 'btp+ws://:secret@127.0.0.1:7777',
     secret: secretBob,
     timeout: timeoutstamp,
     network: 'testnet',
@@ -141,67 +100,28 @@ async function run () {
     zcashUri: 'http://' + USER + ':' + PASS + '@localhost:18444'
   })
 
-  console.log(chalk.grey('establishing RPC'))
-  establishRpc({ port: 7777, alice, bob })
-
   console.log(chalk.grey('connecting alice & bob'))
   await Promise.all([
     alice.connect(),
     bob.connect()
   ])
 
-  console.log(chalk.yellow('fetching plugin metadata'))
-  console.log(chalk.green('alice account:'), alice.getAccount())
-  console.log(chalk.green('bob info:'), bob.getInfo())
-
-  console.log(chalk.yellow('sending a message alice -> bob'))
-  bob.once('incoming_message', (msg) => {
-    console.log(chalk.green('bob got message:'), msg)
+  console.log(chalk.yellow('sending data alice -> bob'))
+  bob.registerDataHandler(async (msg) => {
+    console.log(chalk.green('bob got message:'), msg.toString())
+    return Buffer.from(JSON.stringify({foo: 'baz'}), 'utf8')
   })
-  await alice.sendMessage({
-    to: bob.getAccount(),
-    data: { foo: 'bar' }
-  })
+  const response = await alice.sendData(Buffer.from(JSON.stringify({foo: 'bar'}), 'utf8'))
+  console.log(chalk.green('alice got response:'), response.toString())
 
-  console.log(chalk.yellow('sending a message bob -> alice'))
-  alice.once('incoming_message', (msg) => {
-    console.log(chalk.green('alice got message:'), msg)
-  })
-  await bob.sendMessage({
-    to: alice.getAccount(),
-    data: { bar: 'foo' }
-  })
-
-  console.log(chalk.grey('and now, the moment you\'ve all been waiting for'))
-  console.log(chalk.yellow('sending a transfer'))
-
-  const fulfillment = crypto.randomBytes(32)
-  const condition = crypto.createHash('sha256').update(fulfillment).digest()
-  console.log(chalk.grey('fulfillment:'), base64url(fulfillment))
-  console.log(chalk.grey('condition:  '), base64url(condition))
-
-  bob.once('incoming_prepare', (transfer) => {
-    console.log(chalk.green('bob got transfer:'), transfer)
-    console.log(chalk.yellow('fulfilling a transfer'))
-    console.log(chalk.grey('calling bob.fulfillCondition'))
-    bob.fulfillCondition(transfer.id, base64url(fulfillment))
-  })
-
-  console.log(chalk.grey('calling alice.sendTransfer'))
-  await alice.sendTransfer({
-    id: uuid(),
-    to: bob.getAccount(),
-    amount: 0.1 * ZEC_SCALE,
-    ilp: 'thequickbrownfoxjumpsoverthelazydog',
-    executionCondition: base64url(condition),
-    expiresAt: new Date(Date.now() + 1000).toISOString()
-  })
+  console.log(chalk.yellow('sending money'))
+  await alice.sendMoney(0.1 * BTC_SCALE)
 
   await new Promise((resolve) => setTimeout(resolve, 5000))
   await bob.disconnect()
+  await alice.disconnect()
 
   console.log(chalk.green('done!'))
-  //process.exit(0)
 }
 
 run().catch((err) => {

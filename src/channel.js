@@ -79,11 +79,11 @@ module.exports = class Channel {
     debug('loading fund transaction with id', this._txid)
     this._tx = await zcash.getTx(this._client, this._txid)
 
+    const redeemScriptOut = zcash.scriptToOut(this._redeemScript).toString('hex')
     for (let i = 0; i < this._tx.outs.length; ++i) {
       const out = this._tx.outs[i]
       const outValue = out.value
       const outScript = out.script.toString('hex')
-      const redeemScriptOut = zcash.scriptToOut(this._redeemScript).toString('hex')
 
       if (outScript !== redeemScriptOut) {
         continue
@@ -125,7 +125,7 @@ module.exports = class Channel {
     const sig = zcashjs.ECSignature.parseScriptSignature(Buffer.from(claim, 'hex'))
 
     if (!this._senderKeypair.verify(hash, sig.signature)) {
-      this._balance.sub(transfer.amount)
+      await this._balance.sub(transfer.amount)
       throw new Error('claim (' + claim + ') does not match signature hash (' +
         hash + ')')
     }
@@ -169,7 +169,7 @@ module.exports = class Channel {
     console.log('logging it now')
     // TODO: really submit
     console.log('SUBMIT:', transaction.toBuffer().toString('hex'))
-    zcash.submit(this._client, transaction.toBuffer().toString('hex'))
+    await zcash.submit(this._client, transaction.toBuffer().toString('hex'))
   }
 
   async expire () {

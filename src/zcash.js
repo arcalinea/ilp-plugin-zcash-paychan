@@ -67,7 +67,7 @@ async function createTx ({
 }) {
   const address = scriptToP2SH({ script, network: zcashjs.networks.testnet })
   console.log('sending to address', address, 'with amount', amount)
-  return await client.command('sendtoaddress', address, amount / ZEC_SCALE)
+  return client.command('sendtoaddress', address, amount / ZEC_SCALE)
 }
 
 function scriptToP2SH ({
@@ -143,7 +143,6 @@ function getClosureTxSigned ({
   redeemScript,
   transaction
 }) {
-  const inputIndex = 0
   const hash = getTxHash(transaction, redeemScript)
   return keypair
     .sign(hash)
